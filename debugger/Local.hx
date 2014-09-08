@@ -18,6 +18,8 @@
 
 package debugger;
 
+import debugger.CommandLineController;
+
 
 /**
  * This class creates a local command-line debugger.  This class should be
@@ -39,10 +41,13 @@ class Local
      *        the program will continue to run when the debugger is started
      *        and will not stop until a debugger command instructs them to do
      *        so.
+     * @param displayMode is a display mode to use with the command line
+     *        controller, or null to use a default
      **/
-    public function new(startStopped : Bool)
+    public function new(startStopped : Bool, 
+                        displayMode : Null<DisplayMode> = null)
     {
-        mController = new CommandLineController();
+        mController = new CommandLineController(displayMode);
         mThread = new DebuggerThread(mController, startStopped);
     }
 

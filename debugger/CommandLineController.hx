@@ -21,6 +21,18 @@ package debugger;
 import debugger.IController;
 
 
+enum DisplayMode
+{
+    // This is the standard Haxe style display mode - a native mode that is
+    // most readable.
+    Haxe;
+    // This is a gdb-compatible display mode.  This uses the old-style (NOT
+    // gdb-mi style) output for some commands that is less readable but gdb
+    // compatible in the most significant ways (i.e. those required by
+    // GNU Emacs' gud-gdb mode).
+    Gdb;
+}
+
 /**
  * This class implements a command line interface to a debugger.  It
  * implements IController so that it can be used directly by a debugger
@@ -34,12 +46,13 @@ class CommandLineController implements IController
      * Creates a new command line interface.  This interface will read and
      * parse Commands from stdin, and emit debugger output to stdout.
      **/
-    public function new()
+    public function new(displayMode : Null<DisplayMode> = null)
     {
         Sys.println("");
         Sys.println("-=- hxcpp built-in debugger in command line mode -=-");
         Sys.println("-=-      Use 'help' for help if you need it.     -=-");
         Sys.println("-=-                  Have fun!                   -=-");
+        mDisplayMode = (displayMode == null) ? Haxe : displayMode;
         mUnsafeMode = false;
         mInputs = new Array<haxe.io.Input>();
         mInputs.push(Sys.stdin());
@@ -72,8 +85,13 @@ class CommandLineController implements IController
             var input = mInputs[mInputs.length - 1];
 
             if (mInputs.length == 1) {
-                Sys.print("\n" + mStoredCommands.length + "> " +
-                          carriedCommandLine);
+                switch (mDisplayMode) {
+                case Haxe:
+                    Sys.print("\n" + mStoredCommands.length + "> " +
+                              carriedCommandLine);
+                case Gdb:
+                    Sys.print("\n(gdb) " + carriedCommandLine);
+                }
             }
 
             var commandLine = null;
@@ -245,10 +263,13 @@ class CommandLineController implements IController
             printStringList(list, "\n");
             Sys.println("");
 
-        case Classes(list):
+        case AllClasses(list):
             printStringList(list, "\n");
             Sys.println("");
             
+        case Classes(list):
+            throw "Internal error: unexpected Classes";
+
         case MemBytes(bytes):
             Sys.println(bytes + " bytes used.");
 
@@ -260,8 +281,18 @@ class CommandLineController implements IController
             Sys.println(bytesBefore + " bytes used before collection.");
             Sys.println(bytesAfter + " bytes used after collection.");
 
-        case CurrentThread(number):
-            Sys.println("Current thread set to " + number + ".");
+        case ThreadLocation(number, frameNumber, className, functionName,
+                            fileName, lineNumber):
+            switch (mDisplayMode) {
+            case Haxe:
+                Sys.println("*     " + frameNumber + " : " +
+                            className + "." + functionName + "() at " +
+                            fileName + ":" + lineNumber);
+            case Gdb:
+                Sys.println("#" + padString(Std.string(frameNumber), 3) +
+                            className + "." + functionName + " () at " + 
+                            fileName + ":" + lineNumber);
+            }
             
         case FileLineBreakpointNumber(number):
             Sys.println("Breakpoint " + number + " set and enabled.");
@@ -339,9 +370,6 @@ class CommandLineController implements IController
                 }
             }
 
-        case Continued(count):
-            // Don't print anything here
-
         case ThreadsWhere(Terminator):
             Sys.println("No threads.");
 
@@ -358,7 +386,7 @@ class CommandLineController implements IController
                     else {
                         needNewline = true;
                     }
-                    Sys.print("Thread " + number + " (");
+                    var threadLine : String = "Thread " + number + " (";
                     var isRunning : Bool = false;
                     switch (status) {
                     case Running:
@@ -366,13 +394,18 @@ class CommandLineController implements IController
                         list = next;
                         isRunning = true;
                     case StoppedImmediate:
-                        Sys.println("stopped):");
+                        threadLine += "stopped):";
                     case StoppedBreakpoint(number):
-                        Sys.println("stopped in breakpoint " + number + "):");
+                        threadLine += "stopped in breakpoint " + number + "):";
                     case StoppedUncaughtException:
-                        Sys.println("uncaught exception):");
+                        threadLine += "uncaught exception):";
                     case StoppedCriticalError(description):
-                        Sys.println("critical error: " + description + "):");
+                        threadLine += "critical error: " + description + "):";
+                    }
+                    switch (mDisplayMode) {
+                    case Haxe:
+                        Sys.println(threadLine);
+                    case Gdb:
                     }
                     var hasStack = false;
                     while (true) {
@@ -381,11 +414,23 @@ class CommandLineController implements IController
                             break;
                         case Frame(isCurrent, number, className, functionName,
                                    fileName, lineNumber, next):
-                            Sys.print((isCurrent ? "* " : "  "));
-                            Sys.print(padStringRight(Std.string(number), 5));
-                            Sys.print(" : " + className + "." + functionName +
-                                      "()");
-                            Sys.println(" at " + fileName + ":" + lineNumber);
+                            switch (mDisplayMode) {
+                            case Haxe:
+                                Sys.print((isCurrent ? "* " : "  "));
+                                Sys.print(padStringRight
+                                          (Std.string(number), 5));
+                                Sys.print(" : " + className + "." +
+                                          functionName + "()");
+                                Sys.println(" at " + fileName + ":" +
+                                            lineNumber);
+                            case Gdb:
+                                Sys.print("#" + 
+                                          padString(Std.string(number), 3));
+                                Sys.print(" in " + className + "." + 
+                                          functionName + " ()");
+                                Sys.println(" at " + fileName + ":" +
+                                            lineNumber);
+                            }
                             hasStack = true;
                             frameList = next;
                         }
@@ -397,9 +442,6 @@ class CommandLineController implements IController
                 }
             }
 
-        case CurrentFrame(number):
-            Sys.println("At frame " + number + ".");
-
         case Variables(list):
             printStringList(list, "\n");
             Sys.println("");
@@ -407,20 +449,30 @@ class CommandLineController implements IController
         case Value(expression, type, value):
             Sys.println(expression + " : " + type + " = " + value);
 
+        case Structured(structuredValue):
+            throw "Internal error: unexpected Structured";
+
         case ThreadCreated(number):
-            Sys.println("Thread " + number + " created.");
+            Sys.println("\nThread " + number + " created.");
 
         case ThreadTerminated(number):
-            Sys.println("Thread " + number + " terminated.");
+            Sys.println("\nThread " + number + " terminated.");
 
         case ThreadStarted(number):
             // Don't print anything
 
-        case ThreadStopped(number, className, functionName, fileName,
-                           lineNumber):
-            Sys.println("Thread " + number + " stopped in " +
-                        className + "." + functionName + "() at " +
-                        fileName + ":" + lineNumber + ".");
+        case ThreadStopped(number, frameNumber, className, functionName,
+                           fileName, lineNumber):
+            switch (mDisplayMode) {
+            case Haxe:
+                Sys.println("\nThread " + number + " stopped in " +
+                            className + "." + functionName + "() at " +
+                            fileName + ":" + lineNumber + ".");
+            case Gdb:
+                Sys.println("\nBreakpoint 1, " + className + "." + 
+                            functionName + " () at " +
+                            fileName + ":" + lineNumber);
+            }
         }
     }
     
@@ -548,7 +600,7 @@ class CommandLineController implements IController
 
     private function classes(regex : EReg) : Null<Command>
     {
-        return Classes;
+        return AllClasses;
     }
 
     private function mem(regex : EReg) : Null<Command>
@@ -610,17 +662,22 @@ class CommandLineController implements IController
 
     private function break_class_function(regex : EReg) : Null<Command>
     {
-        return AddClassFunctionBreakpoint(regex.matched(2), regex.matched(3));
+        var full = regex.matched(2);
+        var lastDot = full.lastIndexOf(".");
+        return AddClassFunctionBreakpoint(full.substring(0, lastDot),
+                                          full.substring(lastDot + 1));
     }
 
     private function break_class_regexp(regex : EReg) : Null<Command>
     {
-        var className = regex.matched(2);
+        var full = regex.matched(2);
+        var index = full.indexOf("/");
+        var className = full.substring(0, index - 1);
 
-        var value = regex.matched(3);
+        var value = full.substring(index);
 
         // Value starts with / ... look for end /
-        var index = findSlash(value, 1);
+        index = findSlash(value, 1);
 
         if (index == -1) {
             Sys.println("Invalid command.");
@@ -742,6 +799,12 @@ class CommandLineController implements IController
     {
         return DeleteBreakpointRange(Std.parseInt(regex.matched(2)),
                                      Std.parseInt(regex.matched(3)));
+    }
+
+    private function clear_file_line(regex : EReg) : Null<Command>
+    {
+        return DeleteFileLineBreakpoint(regex.matched(1),
+                                        Std.parseInt(regex.matched(2)));
     }
 
     private function continue_current(regex : EReg) : Null<Command>
@@ -1002,8 +1065,8 @@ class CommandLineController implements IController
   { r: ~/^safe[\s]*$/, h: safe },
   { r: ~/^(b|break)[\s]*$/, h : break_now },
   { r: ~/^(b|break)[\s]+([^:]+):[\s]*([0-9]+)[\s]*$/, h : break_file_line },
-  { r: ~/^(b|break)[\s]+([a-zA-Z_][a-zA-Z0-9_]*)[\s]*\.[\s]*([a-zA-Z_][a-zA-Z0-9_]*)[\s]*$/, h : break_class_function },
-  { r: ~/^(b|break)[\s]+([a-zA-Z_][a-zA-Z0-9_]*)[\s]*\.[\s]*(\/.*)$/, h : break_class_regexp },
+  { r: ~/^(b|break)[\s]+(([a-zA-Z0-9_]+\.)+[a-zA-Z0-9_]+)[\s]*$/, h : break_class_function },
+  { r: ~/^(b|break)[\s]+(([a-zA-Z0-9_]+\.)+\/.*)$/, h : break_class_regexp },
   { r: ~/^(b|break)[\s]+(\/.*)$/, h : break_possible_regexps },
   { r: ~/^lb[\s]*$/, h : list_all_breakpoints },
   { r: ~/^(l|list)[\s]+(all[\s]+)?(b|breakpoints)$/, h : list_all_breakpoints },
@@ -1024,12 +1087,13 @@ class CommandLineController implements IController
   { r: ~/^(d|delete)[\s]+([0-9]+)[\s]*$/, h: delete_breakpoint },
   { r: ~/^(d|delete)[\s]+([0-9]+)[\s]*-[\s]*([0-9]+)[\s]*$/,
     h: delete_ranged_breakpoints },
-  { r: ~/^(continue|c)()[\s]*$/, h: continue_current },
-  { r: ~/^(continue|c)([\s]+[0-9]+)[\s]*$/,h: continue_current },
-  { r: ~/^(step|s)()[\s]*$/, h: step_execution },
-  { r: ~/^(step|s)([\s]+[0-9]+)[\s]*$/, h: step_execution },
-  { r: ~/^(next|n)()[\s]*$/, h: next_execution },
-  { r: ~/^(next|n)([\s]+[0-9]+)[\s]*$/, h: next_execution },
+  { r: ~/^clear[\s]+([^:]+):[\s]*([0-9]+)[\s]*$/, h : clear_file_line },
+  { r: ~/^(continue|cont|c)()[\s]*$/, h: continue_current },
+  { r: ~/^(continue|cont|c)([\s]+[0-9]+)[\s]*$/,h: continue_current },
+  { r: ~/^(step|stepi|s)()[\s]*$/, h: step_execution },
+  { r: ~/^(step|stepi|s)([\s]+[0-9]+)[\s]*$/, h: step_execution },
+  { r: ~/^(next|nexti|n)()[\s]*$/, h: next_execution },
+  { r: ~/^(next|nexti|n)([\s]+[0-9]+)[\s]*$/, h: next_execution },
   { r: ~/^(finish|f)()[\s]*$/, h: finish_execution },
   { r: ~/^(finish|f)([\s]+[0-9]+)[\s]*$/, h: finish_execution },
   { r: ~/^(where|w)[\s]*$/, h: where },
@@ -1045,6 +1109,7 @@ class CommandLineController implements IController
                           ];
     }
 
+    private var mDisplayMode : DisplayMode;
     private var mUnsafeMode : Bool;
     private var mInputs : Array<haxe.io.Input>;
     private var mStoredCommands : Array<String>;
@@ -1264,6 +1329,10 @@ class CommandLineController implements IController
      "  delete <N>       : Deletes breakpoint N.\n" +
      "  delete <N>-<M>   : Deletes breakpoints in the range N - M, " +
      "inclusive.\n" },
+
+         { c : "clear",    s : "Deletes a breakpoint",
+ l : "Syntax: clear <file>:<line>\n\n" +
+     "The clear command deletes a single file:line breakpoint." },
 
          { c : "continue",  s : "Continues thread execution",
  l : "Syntax: continue/c <N>\n\n" +

@@ -18,8 +18,10 @@
 
 package debugger;
 
+import debugger.CommandLineController;
 import debugger.HaxeProtocol;
 import debugger.IController;
+
 
 #if cpp
 import cpp.vm.Deque;
@@ -43,13 +45,35 @@ class HaxeServer
     public static function main()
     {
         var port : Int = 6972;
+        var displayMode : DisplayMode = null;
 
-        var args = Sys.args();
-        if (args.length > 0) {
-            port = Std.parseInt(args[0]);
+        var argv = Sys.args();
+
+        var iter = 0 ... argv.length;
+        for (i in iter) {
+            var arg = argv[i];
+            switch (argv[i]) {
+            case "-port":
+                if (i == (argv.length - 1)) {
+                    Sys.println("ERROR: -port option requires an argument.");
+                    return -1;
+                }
+                else {
+                    i = iter.next();
+                    port = Std.parseInt(argv[i]);
+                }
+            case "--mode=gdb":
+                displayMode = Gdb;
+            case "--mode=haxe":
+                displayMode = Haxe;
+            default:
+                Sys.println("ERROR - invalid argument: " + argv[i]);
+            }
         }
 
-        new HaxeServer(new CommandLineController(), port);
+        new HaxeServer(new CommandLineController(displayMode), port);
+
+        return 0;
     }
 
     /**
@@ -125,8 +149,8 @@ class HaxeServer
                     case ThreadCreated(number):
                     case ThreadTerminated(number):
                     case ThreadStarted(number):
-                    case ThreadStopped(number, className, functionName,
-                                       fileName, lineNumber):
+                    case ThreadStopped(number, frameNumber, className,
+                                       functionName, fileName, lineNumber):
                     default:
                         okToShowPrompt = true;
                     }
