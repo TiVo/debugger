@@ -1,15 +1,12 @@
 {
-  "name": "debugger",
-  "url": "https://github.com/TiVo/debugger",
-  "license": "Apache",
-  "tags": [ "haxe", "hxcpp", "debugger" ],
-  "description": "Haxe classes implementing a debugger interface to the cpp.vm.Debugger class, also debugging utility programs.",
-  "version": "1.0.5",
-  "contributors": [ "gamehaxe", "TiVo" ],
-  "releasenote": "1.0.5: Added -host option to HaxeServer
-                         Allow classes to be fetched in groups to
-                         facilitate limited environments
-                         Fixed debugger hang when an exception occurs
-                         within the debugger",
-  "binaryversion": 1
+  "comment" : "Copyright 2013 TiVo Inc. All Rights Reserved.",
+  "name" : "debugger",
+  "url" : "https://github.com/TiVo/debugger",
+  "license" : "Apache",
+  "tags" : [ "haxe", "hxcpp", "debugger" ],
+  "description" : "Haxe classes implementing a debugger interface to the cpp.vm.Debugger class, also debugging utility programs.",
+  "version" : "1.0.5",
+  "contributors" : [ "gamehaxe", "TiVo" ],
+  "releasenote" : "",
+  "binaryversion" : 1
 }
