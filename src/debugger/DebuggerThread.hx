@@ -18,6 +18,8 @@
 
 package debugger;
 
+import haxe.CallStack;
+
 import cpp.vm.Debugger;
 import debugger.IController;
 
@@ -365,9 +367,9 @@ class DebuggerThread
                 to_skip -= 1;
                 continue;
             }
-            // Allow at most 80K of classes in a message
-            // Allow at most 200 classes in a message
-            if ((total == 200) || (f.length + byte_total) > (80 * 1024)) {
+            // Allow at most 10K of classes in a message
+            // Allow at most 100 classes in a message
+            if ((total == 100) || (f.length + byte_total) > (10 * 1024)) {
                 continuation = Std.string(initial_to_skip + total);
                 break;
             }
@@ -1032,7 +1034,8 @@ class DebuggerThread
                 return ErrorCurrentThreadNotStopped(mCurrentThreadNumber);
             }
             else {
-                return ErrorEvaluatingExpression(e);
+                return ErrorEvaluatingExpression(e.toString() +
+                            CallStack.toString(CallStack.exceptionStack()));
             }
         }
     }
@@ -1067,7 +1070,8 @@ class DebuggerThread
                 return ErrorCurrentThreadNotStopped(mCurrentThreadNumber);
             }
             else {
-                return ErrorEvaluatingExpression(e);
+                return ErrorEvaluatingExpression(e.toString() +
+                            CallStack.toString(CallStack.exceptionStack()));
             }
         }
     }
@@ -1100,7 +1104,8 @@ class DebuggerThread
                 return ErrorCurrentThreadNotStopped(mCurrentThreadNumber);
             }
             else {
-                return ErrorEvaluatingExpression(e);
+                return ErrorEvaluatingExpression(e.toString() +
+                            CallStack.toString(CallStack.exceptionStack()));
             }
         }
     }
