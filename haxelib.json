@@ -6,6 +6,7 @@
   "tags" : [ "haxe", "hxcpp", "debugger" ],
   "description" : "Haxe classes implementing a debugger interface to the cpp.vm.Debugger class, also debugging utility programs.",
   "version" : "1.0.5",
+  "classPath": "src",
   "contributors" : [ "gamehaxe", "TiVo" ],
   "releasenote" : "",
   "binaryversion" : 1
