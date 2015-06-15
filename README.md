@@ -1,4 +1,4 @@
-debugger
-========
+This repository is dead.  Please use:
+=====================================
 
-haxe debugger haxelib
+https://github.com/HaxeFoundation/hxcpp-debugger
